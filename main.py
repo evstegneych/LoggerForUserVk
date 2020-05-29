@@ -2,11 +2,12 @@
 # Евстегней  Чачлык #
 #      2020         #
 # # # # # # # # # # #
-
 import datetime
 import json
 import random
+import shutil
 import time
+from os.path import isfile
 from threading import Thread
 
 import vk_api
@@ -15,7 +16,7 @@ from vk_api.longpoll import VkLongPoll, VkEventType
 
 
 class Config:
-    __slots__ = ["Token", "Trigger",
+    __slots__ = ["Token", "Trigger", "WhiteListChat", "TriggerToAddChat",
                  "filename", "_data"]
 
     def __init__(self, filename):
@@ -37,9 +38,24 @@ class Config:
         for k in self.__slots__[:-2]:
             self._data[k] = getattr(self, k)
 
+    def check(self):
+        if not isfile('config.json'):
+            try:
+                shutil.copy('config.json.sample', 'config.json')
+                exit("Настрой файл config.json")
+            except Exception:
+                exit("Ароверьте ваши права на данную папку!")
+        else:
+            self.load()
+            for x in self.__slots__[:-2]:
+                try:
+                    _ = self.__getattribute__(x)
+                except AttributeError:
+                    exit("У тебя неправильно настроен конфиг. Удали config.json")
+
 
 class Message:
-    def __init__(self, _user_id, _peer_id, _text, _message_id):
+    def __init__(self, _user_id, _peer_id, _text, _message_id, _audio):
         self.user_id = _user_id
         self.peer_id = _peer_id
         self.name = GetNameUsers(self.user_id) + ":"
@@ -48,6 +64,7 @@ class Message:
         self.date = datetime.datetime.now()
         self.deleted = False
         self.edited = False
+        self.audio = _audio
 
     def set_deleted(self):
         self.deleted = True
@@ -63,7 +80,7 @@ class Message:
 
 
 cfg = Config("config.json")
-cfg.load()
+cfg.check()
 
 vk_session = vk_api.VkApi(token=cfg.Token)
 longpoll = VkLongPoll(vk_session)
@@ -95,6 +112,12 @@ def GetNameUsers(user_ids):
     return ", ".join(names)
 
 
+def MessageEdit(mid, t, peer):
+    vk.messages.edit(peer_id=peer,
+                     message_id=mid,
+                     message=t)
+
+
 def run(target, arg=None, timeout=None):
     if arg is None:
         arg = []
@@ -120,7 +143,7 @@ def clear_db():
 
 db = {}
 
-run(clear_db, timeout=600)
+# run(clear_db, timeout=600)
 print("Бот запущен")
 while True:
     try:
@@ -128,23 +151,34 @@ while True:
             if event.type == VkEventType.MESSAGE_NEW:
                 if event.from_chat and event.user_id > 0:
                     if event.user_id != user_id:
-                        add_text = ""
+                        add_text = None
+                        audio_message = None
                         if event.peer_id not in db:
                             db[event.peer_id] = []
                         if event.text:
-                            add_text = event.text
+                            add_text = event.text[:150]
                         else:
-                            response = vk.messages.getById(message_ids=event.message_id)["items"]
-                            if response:
-                                response = response[0]
-                                attach = response.get("attachments")
-                                if attach:
-                                    attach = attach[0].get("sticker")
-                                    if attach is not None:
-                                        add_text = attach["images"][len(attach["images"]) - 1]["url"]
-                                    else:
-                                        add_text = "[Вложение]"
-                        db[event.peer_id].append(Message(event.user_id, event.peer_id, add_text, event.message_id))
+                            if event.peer_id in cfg.WhiteListChat:
+                                response = vk.messages.getById(message_ids=event.message_id)["items"]
+                                if response:
+                                    response = response[0]
+                                    attach = response.get("attachments")
+                                    if attach:
+                                        sticker = attach[0].get("sticker")
+                                        if sticker:
+                                            add_text = sticker["images"][len(sticker["images"]) - 1]["url"]
+                                        else:
+                                            add_text = "[Вложение]"
+
+                                        audio_message = attach[0].get("audio_message")
+                                        if audio_message:
+                                            add_text = audio_message.get("link_ogg")
+
+                            else:
+                                add_text = "[Вложение]"
+                        db[event.peer_id] = db[event.peer_id][len(db[event.peer_id]) - 25:]
+                        db[event.peer_id].append(
+                            Message(event.user_id, event.peer_id, add_text, event.message_id, bool(audio_message)))
                     else:
                         if not event.text:
                             continue
@@ -168,14 +202,28 @@ while True:
 
                             text = f"Лог {GetNameUsers(get_user_id) if get_user_id else ''}:\n"
                             arr = db.get(event.peer_id, [])
-                            for user in arr[len(arr) - (15 if get_user_id else 10):]:
+                            logs = []
+                            for user in arr:
                                 if user.user_id == get_user_id or not get_user_id:
-                                    if (show_only_deleted and user.deleted) or not show_only_deleted:
-                                        text += f"{user.name if not get_user_id else '--'} {user.get_edited()}" \
-                                                f"{user.get_deleted()} {user.text}" \
-                                                f"\n"
+                                    logs.append(user)
+                            for user in logs[len(logs) - 10:]:
+                                text += f"{user.name if not get_user_id else '--'} {user.get_edited()}" \
+                                        f"{user.get_deleted()} {user.text}" \
+                                        f"\n"
                             MessagesSend(event.peer_id, text)
                             MessageDelete(event.message_id)
+
+                        if message == cfg.TriggerToAddChat:
+                            if event.peer_id in cfg.WhiteListChat:
+                                cfg.WhiteListChat.remove(event.peer_id)
+                                MessageEdit(event.message_id, f"Беседа <<{event.peer_id}>> удалена.", event.peer_id)
+                            else:
+                                cfg.WhiteListChat.append(event.peer_id)
+                                MessageEdit(event.message_id, f"Беседа <<{event.peer_id}>> добавлена.",
+                                            event.peer_id)
+                            run(target=MessageDelete, arg=[event.message_id], timeout=5)
+                            cfg.update()
+                            cfg.save()
 
             if event.type == VkEventType.MESSAGE_FLAGS_SET and event.raw[0] == 2:
                 if event.peer_id in db:
@@ -186,7 +234,7 @@ while True:
             if event.type == VkEventType.MESSAGE_EDIT and event.raw[0] == 5:
                 if event.peer_id in db:
                     for user in db.get(event.peer_id, []):
-                        if user.message_id == event.message_id:
+                        if user.message_id == event.message_id and not user.audio:
                             user.text += f"\n↓\n{event.text}"
                             user.edited = True
 
