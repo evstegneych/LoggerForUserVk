@@ -2,6 +2,7 @@
 # Евстегней  Чачлык #
 #      2020         #
 # # # # # # # # # # #
+import codecs
 import datetime
 import json
 import random
@@ -24,14 +25,14 @@ class Config:
         self._data = None
 
     def load(self, ):
-        with open(self.filename, "r", encoding="utf-8") as file:
+        with codecs.open(self.filename, "r", "utf-8-sig") as file:
             self._data = json.load(file)
             for (k, v) in self._data.items():
                 setattr(self, k, v)
 
     def save(self):
         if self._data is not None:
-            with open(self.filename, "w", encoding="utf-8") as file:
+            with codecs.open(self.filename, "w", "utf-8-sig") as file:
                 json.dump(self._data, file, ensure_ascii=False, indent=4)
 
     def update(self):
@@ -44,7 +45,7 @@ class Config:
                 shutil.copy('config.json.sample', 'config.json')
                 exit("Настрой файл config.json")
             except Exception:
-                exit("Ароверьте ваши права на данную папку!")
+                exit("Проверьте ваши права на данную папку!")
         else:
             self.load()
             for x in self.__slots__[:-2]:
