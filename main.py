@@ -36,7 +36,7 @@ class Config:
 
     def update(self):
         for k in self.__slots__[:-2]:
-            self._data[k] = getattr(self, k)
+            self._data[k] = getattr(self, k, "")
 
     def check(self):
         if not isfile('config.json'):
@@ -49,9 +49,14 @@ class Config:
             self.load()
             for x in self.__slots__[:-2]:
                 try:
-                    _ = self.__getattribute__(x)
+                    if getattr(self, x) == "":
+                        raise ValueError
                 except AttributeError:
-                    exit("У тебя неправильно настроен конфиг. Удали config.json")
+                    self.update()
+                    self.save()
+                    exit("У тебя неправильно настроен конфиг. Перезапусти скрипт и настрой config.json")
+                except:
+                    exit("Заполни все пустые строки в config.json")
 
 
 class Message:
