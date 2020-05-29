@@ -213,9 +213,10 @@ while True:
                                 if user.user_id == get_user_id or not get_user_id:
                                     logs.append(user)
                             for user in logs[len(logs) - 10:]:
-                                text += f"{user.name if not get_user_id else '--'} {user.get_edited()}" \
-                                        f"{user.get_deleted()} {user.text}" \
-                                        f"\n"
+                                if (show_only_deleted and user.deleted) or not show_only_deleted:
+                                    text += f"{user.name if not get_user_id else '--'} {user.get_edited()}" \
+                                            f"{user.get_deleted()} {user.text}" \
+                                            f"\n"
                             MessagesSend(event.peer_id, text)
                             MessageDelete(event.message_id)
 
