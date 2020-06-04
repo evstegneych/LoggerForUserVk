@@ -17,7 +17,7 @@ from vk_api.longpoll import VkLongPoll, VkEventType
 
 
 class Config:
-    __slots__ = ["Token", "Trigger", "WhiteListChat", "TriggerToAddChat",
+    __slots__ = ["Token", "Trigger", "WhiteListChat", "TriggerToAddChat", "TriggerShowChats",
                  "filename", "_data"]
 
     def __init__(self, filename):
@@ -44,8 +44,10 @@ class Config:
             try:
                 shutil.copy('config.json.sample', 'config.json')
                 exit("Настрой файл config.json")
-            except Exception:
+            except Exception as s:
                 exit("Проверьте ваши права на данную папку!")
+                # Чтобы линт не ругался
+                print(s)
         else:
             self.load()
             for x in self.__slots__[:-2]:
@@ -56,8 +58,10 @@ class Config:
                     self.update()
                     self.save()
                     exit("У тебя неправильно настроен конфиг. Перезапусти скрипт и настрой config.json")
-                except:
+                except Exception as s:
                     exit("Заполни все пустые строки в config.json")
+                    # Чтобы линт не ругался
+                    print(s)
 
 
 class Message:
@@ -307,7 +311,7 @@ def main():
                                 cfg.update()
                                 cfg.save()
 
-                            if message == "!все чаты":
+                            if message == cfg.TriggerShowChats:
                                 chats = "\n".join(
                                     list(map(lambda x: f"{x} {'✅' if event.peer_id == x else ''}", cfg.WhiteListChat)))
                                 MessageEdit(event.message_id,
@@ -337,7 +341,6 @@ def main():
 
         except Exception as e:
             print("Основной поток: ", e)
-            raise
             time.sleep(10)
 
 
