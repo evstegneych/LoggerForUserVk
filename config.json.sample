@@ -2,5 +2,6 @@
     "Token": "",
     "Trigger": "!лог",
     "WhiteListChat": [],
-    "TriggerToAddChat": "!включить"
+    "TriggerToAddChat": "!включить",
+    "TriggerShowChats" : "!все чаты"
 }
