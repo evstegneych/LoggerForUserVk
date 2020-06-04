@@ -116,24 +116,28 @@ def MessageDelete(mid, delete_for_all=1):
                        delete_for_all=delete_for_all)
 
 
-def GetAllAttachments(_res, msg: Message):
-    _arr = []
-    msg.attachments = []
-    for attach in _res:
-        audio_message = attach.get("audio_message")
-        if audio_message:
-            msg.attachments.append(audio_message.get("link_ogg"))
-            msg.set_audio()
-            break
+def GetAllAttachments(msg: Message):
+    response = vk.messages.getById(message_ids=msg.message_id)["items"]
+    if response:
+        response = response[0]
+        attachments = response.get("attachments")
+        _arr = []
+        if not msg.attachments:
+            msg.attachments = []
+        for attach in attachments:
+            audio_message = attach.get("audio_message")
+            if audio_message:
+                msg.attachments.append(audio_message.get("link_ogg"))
+                msg.set_audio()
+                break
 
-        sticker = attach.get("sticker")
-        if sticker:
-            msg.attachments.append(sticker["images"][len(sticker["images"]) - 1]["url"])
+            sticker = attach.get("sticker")
+            if sticker:
+                msg.attachments.append(sticker["images"][len(sticker["images"]) - 1]["url"])
 
-        photo = attach.get("photo")
-        if photo:
-            msg.attachments.append(photo["sizes"][len(photo["sizes"]) - 1]["url"])
-
+            photo = attach.get("photo")
+            if photo:
+                msg.attachments.append(photo["sizes"][len(photo["sizes"]) - 1]["url"])
     return msg
 
 
@@ -185,7 +189,6 @@ def main():
             for event in longpoll.listen():
                 if event.type == VkEventType.MESSAGE_NEW:
                     if event.from_chat and event.user_id > 0:
-                        print(event.raw)
                         if event.user_id != user_id:
                             msg = Message(event.user_id, event.peer_id, event.message_id)
                             if event.peer_id not in db:
@@ -194,11 +197,7 @@ def main():
                                 msg.text = event.text[:150]
                             else:
                                 if event.peer_id in cfg.WhiteListChat:
-                                    response = vk.messages.getById(message_ids=event.message_id)["items"]
-                                    if response:
-                                        response = response[0]
-                                        attachments = response.get("attachments")
-                                        msg = GetAllAttachments(attachments, msg)
+                                    msg = GetAllAttachments(msg)
                             _len = len(db[event.peer_id])
                             if _len > 200:
                                 db[event.peer_id] = db[event.peer_id][_len - 100:]
@@ -230,9 +229,12 @@ def main():
                                         if (show_only_deleted and user.deleted) or not show_only_deleted:
                                             logs.append(user)
                                 for user in logs[len(logs) - 10:]:
+                                    a = '\n'.join(list(set(user.attachments)))
+                                    n = '\n'
                                     text += f"{user.name if not get_user_id else '--'} {user.get_edited()}" \
-                                            f"{user.get_deleted()} {user.text}" \
-                                            f"\n"
+                                            f"{user.get_deleted()} {user.text}\n" \
+                                            f"Все вложения:\n {a}{n if a else ''}" \
+                                            f"{'' if get_user_id else '- - - - - - - - - - -'}\n"
                                 MessagesSend(event.peer_id, text)
                                 MessageDelete(event.message_id)
 
@@ -248,6 +250,9 @@ def main():
                                 cfg.update()
                                 cfg.save()
 
+                            if message == "!все чаты":
+                                MessageEdit(event.message_id, "\n".join(cfg.WhiteListChat), event.peer_id)
+
                 if event.type == VkEventType.MESSAGE_FLAGS_SET and event.raw[0] == 2:
                     if event.peer_id in db:
                         for user in db.get(event.peer_id, []):
@@ -257,7 +262,8 @@ def main():
                 if event.type == VkEventType.MESSAGE_EDIT and event.raw[0] == 5:
                     if event.peer_id in db:
                         for user in db.get(event.peer_id, []):
-                            if user.message_id == event.message_id and not user.audio and user.count_edited <= 5:
+                            if user.message_id == event.message_id and not user.audio and user.count_edited <= 4:
+                                user = GetAllAttachments(user)
                                 user.text += f"\n↓\n{event.text[:100]}"
                                 user.edited = True
                                 user.count_edited += 1
