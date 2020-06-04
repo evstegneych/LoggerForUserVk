@@ -105,7 +105,10 @@ print(f"{user_name},", end=" ")
 
 def MessagesSend(_peer_id, _text, disable_mentions=1):
     return vk.messages.send(peer_id=_peer_id,
-                            message=_text,
+                            message=ReplaceBennedWord(_text.replace('&lt;', '<')
+                                                      .replace('&gt;', '>')
+                                                      .replace('&quot;', '"')
+                                                      .replace('&amp;', '&')),
                             random_id=random.randint(-1000000, 1000000),
                             disable_mentions=disable_mentions,
                             dont_parse_links=1)
@@ -138,6 +141,10 @@ def GetAllAttachments(msg: Message):
             photo = attach.get("photo")
             if photo:
                 msg.attachments.append(photo["sizes"][len(photo["sizes"]) - 1]["url"])
+
+            video = attach.get("video")
+            if video:
+                msg.attachments.append(f"https://vk.com/video{video['owner_id']}_{video['id']}")
     return msg
 
 
@@ -184,8 +191,23 @@ def clear_db():
         time.sleep(1200)
 
 
-db = {}
+def ReplaceBennedWord(text):
+    for c, v in banned_word.items():
+        text = text.replace(c, v)
+    return text
 
+
+db = {}
+banned_word = {
+    "vto.pe": "впо.пе",
+    "@all": "<all>",
+    "@everyone": "<all>",
+    "@тут": "<онлине>",
+    "@все": "<алл>",
+    "@здесь": "<онлине>",
+    "@here": "<онлине>",
+    "@online": "<онлине>"
+}
 
 # run(clear_db, timeout=600)
 def main():
@@ -206,6 +228,9 @@ def main():
                                     msg = GetAllAttachments(msg)
                             _len = len(db[event.peer_id])
                             if _len > 200:
+                                print(db[event.peer_id])
+                                print("обрезал")
+                                print(db[event.peer_id])
                                 db[event.peer_id] = db[event.peer_id][_len - 100:]
                             db[event.peer_id].append(msg)
                         else:
@@ -234,13 +259,20 @@ def main():
                                     if user.user_id == get_user_id or not get_user_id:
                                         if (show_only_deleted and user.deleted) or not show_only_deleted:
                                             logs.append(user)
+                                print(arr)
+                                print(logs)
+                                lastUser = 0
                                 for user in logs[len(logs) - 10:]:
                                     a = "Все вложения:\n " + "\n".join(list(set(user.attachments))) + "\n"
-                                    n = '\n'
-                                    text += f"{user.name if not get_user_id else '--'} {user.get_edited()}" \
+                                    if get_user_id or (lastUser == user.user_id):
+                                        name = "--"
+                                    else:
+                                        name = user.name
+                                    lastUser = user.user_id
+                                    text += f"{name} {user.get_edited()}" \
                                             f"{user.get_deleted()} {user.text}\n" \
-                                            f"{a}" \
-                                            f"{'' if get_user_id else '- - - - - - - - - - -'}\n"
+                                            f"{a if user.attachments else ''}" \
+                                            f"{'' if get_user_id else ''}"
                                 MessagesSend(event.peer_id, text)
                                 MessageDelete(event.message_id)
 
@@ -258,7 +290,8 @@ def main():
 
                             if message == "!все чаты":
                                 chats = "\n".join(list(map(lambda x: str(x), cfg.WhiteListChat)))
-                                MessageEdit(event.message_id, f"Все чаты в которых включено получение вложений:\n {chats}", event.peer_id)
+                                MessageEdit(event.message_id,
+                                            f"Все чаты в которых включено получение вложений:\n {chats}", event.peer_id)
                                 run(target=MessageDelete, arg=[event.message_id], timeout=10)
 
                 if event.type == VkEventType.MESSAGE_FLAGS_SET and event.raw[0] == 2:
