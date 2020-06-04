@@ -89,6 +89,9 @@ class Message:
     def set_audio(self):
         self.audio = True
 
+    def __repr__(self):
+        return f"{self.user_id}:{self.peer_id}:{self.message_id}"
+
 
 cfg = Config("config.json")
 cfg.check()
@@ -209,6 +212,7 @@ banned_word = {
     "@online": "<онлине>"
 }
 
+
 # run(clear_db, timeout=600)
 def main():
     print("Бот запущен")
@@ -227,11 +231,11 @@ def main():
                                 if event.peer_id in cfg.WhiteListChat:
                                     msg = GetAllAttachments(msg)
                             _len = len(db[event.peer_id])
-                            if _len > 200:
-                                print(db[event.peer_id])
+                            if _len > 500:
+                                print(len(db[event.peer_id]))
                                 print("обрезал")
-                                print(db[event.peer_id])
-                                db[event.peer_id] = db[event.peer_id][_len - 100:]
+                                db[event.peer_id] = db[event.peer_id][_len - 250:]
+                                print(len(db[event.peer_id]))
                             db[event.peer_id].append(msg)
                         else:
                             if not event.text:
@@ -259,10 +263,9 @@ def main():
                                     if user.user_id == get_user_id or not get_user_id:
                                         if (show_only_deleted and user.deleted) or not show_only_deleted:
                                             logs.append(user)
-                                print(arr)
-                                print(logs)
                                 lastUser = 0
-                                for user in logs[len(logs) - 10:]:
+                                logs = logs if len(logs) < 10 else logs[len(logs) - 10:]
+                                for user in logs:
                                     a = "Все вложения:\n " + "\n".join(list(set(user.attachments))) + "\n"
                                     if get_user_id or (lastUser == user.user_id):
                                         name = "--"
@@ -289,7 +292,7 @@ def main():
                                 cfg.save()
 
                             if message == "!все чаты":
-                                chats = "\n".join(list(map(lambda x: str(x), cfg.WhiteListChat)))
+                                chats = "\n".join(list(map(lambda x: f"{x} {'✅' if event.peer_id == x else ''}", cfg.WhiteListChat)))
                                 MessageEdit(event.message_id,
                                             f"Все чаты в которых включено получение вложений:\n {chats}", event.peer_id)
                                 run(target=MessageDelete, arg=[event.message_id], timeout=10)
