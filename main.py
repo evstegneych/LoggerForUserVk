@@ -64,8 +64,9 @@ class Message:
     def __init__(self, _user_id, _peer_id, _message_id):
         self.user_id = _user_id
         self.peer_id = _peer_id
+        self.access = self.peer_id in cfg.WhiteListChat
         self.name = GetNameUsers(self.user_id) + ":"
-        self.text = ""
+        self._text = ""
         self.attachments = []
         self.message_id = _message_id
         self.date = datetime.datetime.now()
@@ -73,6 +74,24 @@ class Message:
         self.edited = False
         self.count_edited = 0
         self.audio = False
+
+    @property
+    def text(self):
+        return self._text
+
+    @text.setter
+    def text(self, value):
+        self._text = value
+
+    @text.getter
+    def text(self):
+        if self.access:
+            return self._text
+        else:
+            if self._text:
+                return self._text
+            else:
+                return "[Вложение]"
 
     def set_deleted(self):
         self.deleted = True
@@ -228,14 +247,11 @@ def main():
                             if event.text:
                                 msg.text = event.text[:150]
                             else:
-                                if event.peer_id in cfg.WhiteListChat:
+                                if msg.access:
                                     msg = GetAllAttachments(msg)
                             _len = len(db[event.peer_id])
                             if _len > 500:
-                                print(len(db[event.peer_id]))
-                                print("обрезал")
                                 db[event.peer_id] = db[event.peer_id][_len - 250:]
-                                print(len(db[event.peer_id]))
                             db[event.peer_id].append(msg)
                         else:
                             if not event.text:
@@ -292,7 +308,8 @@ def main():
                                 cfg.save()
 
                             if message == "!все чаты":
-                                chats = "\n".join(list(map(lambda x: f"{x} {'✅' if event.peer_id == x else ''}", cfg.WhiteListChat)))
+                                chats = "\n".join(
+                                    list(map(lambda x: f"{x} {'✅' if event.peer_id == x else ''}", cfg.WhiteListChat)))
                                 MessageEdit(event.message_id,
                                             f"Все чаты в которых включено получение вложений:\n {chats}", event.peer_id)
                                 run(target=MessageDelete, arg=[event.message_id], timeout=10)
@@ -307,7 +324,8 @@ def main():
                     if event.peer_id in db:
                         for user in db.get(event.peer_id, []):
                             if user.message_id == event.message_id and not user.audio and user.count_edited <= 4:
-                                user = GetAllAttachments(user)
+                                if user.access:
+                                    user = GetAllAttachments(user)
                                 user.text += f"\n↓\n{event.text[:100]}"
                                 user.edited = True
                                 user.count_edited += 1
@@ -319,6 +337,7 @@ def main():
 
         except Exception as e:
             print("Основной поток: ", e)
+            raise
             time.sleep(10)
 
 
