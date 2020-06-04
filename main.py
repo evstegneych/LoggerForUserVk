@@ -166,7 +166,13 @@ def void(target, arg=None, timeout=None):
         time.sleep(timeout)
     if arg is None:
         arg = []
-    target(*arg)
+    try:
+        target(*arg)
+    except Exception as s:
+        print(f"Ошибка в функции {target.__name__}\n"
+              f"Аргументы: {arg}\n"
+              f"Ошибка: {s}\n"
+              f"Отправьте разработчику!")
 
 
 def clear_db():
@@ -229,11 +235,11 @@ def main():
                                         if (show_only_deleted and user.deleted) or not show_only_deleted:
                                             logs.append(user)
                                 for user in logs[len(logs) - 10:]:
-                                    a = '\n'.join(list(set(user.attachments)))
+                                    a = "Все вложения:\n " + "\n".join(list(set(user.attachments))) + "\n"
                                     n = '\n'
                                     text += f"{user.name if not get_user_id else '--'} {user.get_edited()}" \
                                             f"{user.get_deleted()} {user.text}\n" \
-                                            f"Все вложения:\n {a}{n if a else ''}" \
+                                            f"{a}" \
                                             f"{'' if get_user_id else '- - - - - - - - - - -'}\n"
                                 MessagesSend(event.peer_id, text)
                                 MessageDelete(event.message_id)
@@ -251,7 +257,9 @@ def main():
                                 cfg.save()
 
                             if message == "!все чаты":
-                                MessageEdit(event.message_id, "\n".join(cfg.WhiteListChat), event.peer_id)
+                                chats = "\n".join(list(map(lambda x: str(x), cfg.WhiteListChat)))
+                                MessageEdit(event.message_id, f"Все чаты в которых включено получение вложений:\n {chats}", event.peer_id)
+                                run(target=MessageDelete, arg=[event.message_id], timeout=10)
 
                 if event.type == VkEventType.MESSAGE_FLAGS_SET and event.raw[0] == 2:
                     if event.peer_id in db:
